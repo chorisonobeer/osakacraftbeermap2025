@@ -25,8 +25,26 @@ type Props = {
 
 type ShopDataWithDistance = Pwamap.ShopData & { distance?: number };
 
+// 位置情報と距離計算のキャッシュ
+let positionCache: { coords: { latitude: number; longitude: number }; timestamp: number } | null = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5分間キャッシュ
+
 const sortShopList = async (shopList: Pwamap.ShopData[]): Promise<ShopDataWithDistance[]> => {
-  const currentPosition = await askGeolocationPermission();
+  // キャッシュされた位置情報を使用
+  let currentPosition;
+  if (positionCache && Date.now() - positionCache.timestamp < CACHE_DURATION) {
+    currentPosition = [positionCache.coords.longitude, positionCache.coords.latitude];
+  } else {
+    const position = await askGeolocationPermission();
+    if (position) {
+      positionCache = {
+        coords: { latitude: position[1], longitude: position[0] },
+        timestamp: Date.now()
+      };
+      currentPosition = position;
+    }
+  }
+
   if (currentPosition) {
     const from = turf.point(currentPosition);
     const sortingShopList = shopList.map((shop) => {
@@ -56,26 +74,52 @@ const sortShopList = async (shopList: Pwamap.ShopData[]): Promise<ShopDataWithDi
 };
 
 const Content = (props: Props) => {
-
   const [shop, setShop] = useState<Pwamap.ShopData | undefined>();
   const [data, setData] = useState<Pwamap.ShopData[]>(props.data);
   const [list, setList] = useState<Pwamap.ShopData[]>([]);
   const [page, setPage] = useState(10);
   const [hasMore, setHasMore] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const [searchParams] = useSearchParams();
   const queryCategory = searchParams.get('category');
 
+  // データのキャッシュ
+  const [cachedData, setCachedData] = useState<{
+    [key: string]: {
+      data: Pwamap.ShopData[];
+      timestamp: number;
+    };
+  }>({});
+
   useEffect(() => {
     let isMounted = true;
+    setIsLoading(true);
 
     const fetchData = async () => {
+      const cacheKey = queryCategory || 'all';
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000; // 5分間キャッシュ
+
+      // キャッシュからデータを取得
+      if (cachedData[cacheKey] && now - cachedData[cacheKey].timestamp < CACHE_DURATION) {
+        if (isMounted) {
+          setData(cachedData[cacheKey].data);
+          setList(cachedData[cacheKey].data.slice(0, page));
+          setIsLoading(false);
+        }
+        return;
+      }
+
       let filteredData = props.data;
 
       if (queryCategory) {
         filteredData = props.data.filter((shop) => {
-          return shop['カテゴリ'] === queryCategory;
+          const shopCategories = shop['カテゴリ']
+            ? shop['カテゴリ'].split(/,|、|\s+/).map(cat => cat.trim())
+            : [];
+          return shopCategories.includes(queryCategory);
         });
       }
 
@@ -84,13 +128,29 @@ const Content = (props: Props) => {
       if (orderBy === 'distance') {
         const sortedData = await sortShopList(filteredData);
         if (isMounted) {
+          setCachedData(prev => ({
+            ...prev,
+            [cacheKey]: {
+              data: sortedData,
+              timestamp: now
+            }
+          }));
           setList(sortedData.slice(0, page));
           setData(sortedData);
+          setIsLoading(false);
         }
       } else {
         if (isMounted) {
+          setCachedData(prev => ({
+            ...prev,
+            [cacheKey]: {
+              data: filteredData,
+              timestamp: now
+            }
+          }));
           setList(filteredData.slice(0, page));
           setData(filteredData);
+          setIsLoading(false);
         }
       }
     };
@@ -100,7 +160,7 @@ const Content = (props: Props) => {
     return () => {
       isMounted = false;
     };
-  }, [props.data, queryCategory, page]);
+  }, [props.data, queryCategory, page, cachedData]);
 
   const popupHandler = (shop: Pwamap.ShopData) => {
     if (shop) {
@@ -152,7 +212,7 @@ const Content = (props: Props) => {
         dataLength={list.length}
         next={loadMore}
         hasMore={hasMore}
-        loader={<div className="list-loader" key="loader"></div>}
+        loader={isLoading ? skeletonLoader : <div className="list-loader" key="loader"></div>}
         scrollableTarget="shop-list"
       >
         {list.length === 0 ? skeletonLoader : 

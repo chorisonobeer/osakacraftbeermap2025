@@ -38,11 +38,18 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
       const allCategories = data
         .map(shop => shop['カテゴリ'])
         .filter(Boolean)
-        .flatMap(category => category.split(/,|、|\s+/))
-        .map(category => category.trim())
-        .filter(category => category !== '');
+        .flatMap(category => {
+          // カンマ、全角カンマ、空白で分割
+          const splitCategories = category.split(/,|、|\s+/)
+            .map(cat => cat.trim())
+            .filter(cat => cat !== '');
+          return splitCategories;
+        });
       
-      const uniqueCategories = Array.from(new Set(allCategories));
+      // 重複を除去して一意のカテゴリリストを作成
+      const uniqueCategories = Array.from(new Set(allCategories))
+        .sort(); // カテゴリをアルファベット順にソート
+      
       setCategories(uniqueCategories);
     }
   }, [data]);
