@@ -15,7 +15,6 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
   const [hasParking, setHasParking] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
-  const [results, setResults] = useState<Pwamap.ShopData[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showAreaDropdown, setShowAreaDropdown] = useState(false);
@@ -68,123 +67,96 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
     }
   }, [data]);
 
+  // 営業時間の判定
+  const isShopOpen = (shop: Pwamap.ShopData): boolean => {
+    if (!shop['営業時間']) return false;
+
+    const now = new Date();
+    const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+    const jstNow = new Date(utc + 9 * 60 * 60000);
+    const currentHour = jstNow.getHours();
+    const currentMinute = jstNow.getMinutes();
+    const currentTimeMinutes = currentHour * 60 + currentMinute;
+    const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][jstNow.getDay()];
+
+    // 定休日チェック
+    if (shop['定休日']) {
+      const closedDays = shop['定休日']
+        .split(/,|、|\s+/)
+        .map(day => day.trim())
+        .filter(day => day !== '');
+      if (closedDays.some(day => day.includes(dayOfWeek))) {
+        return false;
+      }
+    }
+
+    // 営業時間チェック
+    const timeRangeMatch = shop['営業時間'].match(/(\d{1,2}):(\d{2})\s*[-～]\s*(\d{1,2}):(\d{2})/);
+    if (!timeRangeMatch) return false;
+
+    const [, startHourStr, startMinuteStr, endHourStr, endMinuteStr] = timeRangeMatch;
+    const startHour = parseInt(startHourStr, 10);
+    const startMinute = parseInt(startMinuteStr, 10);
+    const endHour = parseInt(endHourStr, 10);
+    const endMinute = parseInt(endMinuteStr, 10);
+    const startTimeMinutes = startHour * 60 + startMinute;
+    const endTimeMinutes = endHour * 60 + endMinute;
+
+    if (endTimeMinutes < startTimeMinutes) {
+      // 深夜営業の場合（例：22:00-02:00）
+      return currentTimeMinutes >= startTimeMinutes || currentTimeMinutes <= endTimeMinutes;
+    } else {
+      // 通常営業の場合
+      return currentTimeMinutes >= startTimeMinutes && currentTimeMinutes <= endTimeMinutes;
+    }
+  };
+
+  // 駐車場の判定
+  const hasParkingSpace = (shop: Pwamap.ShopData): boolean => {
+    if (!shop['駐車場']) return false;
+    const parkingStr = shop['駐車場'].trim();
+    const parkingCountMatch = parkingStr.match(/(\d+)/);
+    if (parkingCountMatch) {
+      const parkingCount = parseInt(parkingCountMatch[1], 10);
+      return parkingCount >= 1;
+    }
+    return parkingStr.includes('有') || parkingStr.includes('あり');
+  };
+
   // フィルタリング処理
   const filterShops = useCallback(() => {
-    let filtered = data;
-    console.debug(`フィルタリング開始：全店舗数 ${filtered.length}`);
-
-    // テキスト検索
-    if (query.trim() !== '') {
-      filtered = filtered.filter(shop => {
-        return Object.entries(shop).some(([_, value]) => {
+    const filtered = data.filter(shop => {
+      // テキスト検索
+      if (query.trim() !== '') {
+        const matchesQuery = Object.entries(shop).some(([_, value]) => {
           if (typeof value === 'string') {
             return value.toLowerCase().includes(query.toLowerCase());
           }
           return false;
         });
-      });
-      console.debug(`テキスト検索後： ${filtered.length} 件`);
-    }
+        if (!matchesQuery) return false;
+      }
 
-    // カテゴリでフィルタリング
-    if (selectedCategory) {
-      filtered = filtered.filter(shop => {
+      // カテゴリフィルター
+      if (selectedCategory) {
         const shopCategories = shop['カテゴリ']
           ? shop['カテゴリ'].split(/,|、|\s+/).map(cat => cat.trim())
           : [];
-        return shopCategories.includes(selectedCategory);
-      });
-      console.debug(`カテゴリフィルタ後： ${filtered.length} 件`);
-    }
+        if (!shopCategories.includes(selectedCategory)) return false;
+      }
 
-    // エリアでフィルタリング
-    if (selectedArea) {
-      filtered = filtered.filter(shop => shop['エリア'] === selectedArea);
-      console.debug(`エリアフィルタ後： ${filtered.length} 件`);
-    }
+      // エリアフィルター
+      if (selectedArea && shop['エリア'] !== selectedArea) return false;
 
-    // 営業中でフィルタリング
-    if (isOpenNow) {
-      // 現在時刻をJST（UTC+9）に補正して取得
-      const now = new Date();
-      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const jstNow = new Date(utc + 9 * 60 * 60000);
-      const currentHour = jstNow.getHours();
-      const currentMinute = jstNow.getMinutes();
-      const currentTimeMinutes = currentHour * 60 + currentMinute;
-      console.debug(`現在のJST時刻: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
-      const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][jstNow.getDay()];
+      // 営業時間フィルター
+      if (isOpenNow && !isShopOpen(shop)) return false;
 
-      filtered = filtered.filter(shop => {
-        // 定休日チェック：カンマ、全角カンマ、空白で分割してチェック
-        if (shop['定休日']) {
-          const closedDays = shop['定休日']
-            .split(/,|、|\s+/)
-            .map(day => day.trim())
-            .filter(day => day !== '');
-          if (closedDays.some(day => day.includes(dayOfWeek))) {
-            console.debug(`店舗[${shop['スポット名']}]：定休日(${dayOfWeek})のため除外`);
-            return false;
-          }
-        }
+      // 駐車場フィルター
+      if (hasParking && !hasParkingSpace(shop)) return false;
 
-        // 営業時間チェック（例: "10:00 - 17:00" の形式）
-        if (shop['営業時間']) {
-          const timeRangeMatch = shop['営業時間'].match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
-          if (timeRangeMatch) {
-            const [, startHourStr, startMinuteStr, endHourStr, endMinuteStr] = timeRangeMatch;
-            const startHour = parseInt(startHourStr, 10);
-            const startMinute = parseInt(startMinuteStr, 10);
-            const endHour = parseInt(endHourStr, 10);
-            const endMinute = parseInt(endMinuteStr, 10);
-            const startTimeMinutes = startHour * 60 + startMinute;
-            const endTimeMinutes = endHour * 60 + endMinute;
-            
-            console.debug(`店舗[${shop['スポット名']}] 営業時間: ${startHour}:${startMinute.toString().padStart(2, '0')} ～ ${endHour}:${endMinute.toString().padStart(2, '0')}、現在: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
+      return true;
+    });
 
-            // 深夜営業対応（例: 22:00 - 02:00）
-            if (endTimeMinutes < startTimeMinutes) {
-              // 終了時間が開始時間より前の場合（深夜営業）
-              const isOpen = currentTimeMinutes >= startTimeMinutes || currentTimeMinutes <= endTimeMinutes;
-              console.debug(`店舗[${shop['スポット名']}]: 深夜営業判定 = ${isOpen ? '営業中' : '営業時間外'}`);
-              return isOpen;
-            } else {
-              // 通常の営業時間
-              const isOpen = currentTimeMinutes >= startTimeMinutes && currentTimeMinutes <= endTimeMinutes;
-              console.debug(`店舗[${shop['スポット名']}]: 通常営業判定 = ${isOpen ? '営業中' : '営業時間外'}`);
-              return isOpen;
-            }
-          } else {
-            console.warn(`店舗[${shop['スポット名']}]：営業時間の形式が不明 (${shop['営業時間']})`);
-            // フォーマット不明な場合は営業中でないと判断
-            return false;
-          }
-        }
-        
-        // 営業時間情報がない場合は営業中でないと判断
-        console.debug(`店舗[${shop['スポット名']}]：営業時間情報なし`);
-        return false;
-      });
-      console.debug(`営業時間フィルタ後： ${filtered.length} 件`);
-    }
-
-    // 駐車場フィルタリング
-    if (hasParking) {
-      filtered = filtered.filter(shop => {
-        if (!shop['駐車場']) return false;
-        const parkingStr = shop['駐車場'].trim();
-        const parkingCountMatch = parkingStr.match(/(\d+)/);
-        if (parkingCountMatch) {
-          const parkingCount = parseInt(parkingCountMatch[1], 10);
-          return parkingCount >= 1;
-        }
-        return parkingStr.includes('有') || parkingStr.includes('あり');
-      });
-      console.debug(`駐車場フィルタ後： ${filtered.length} 件`);
-    }
-
-    console.debug(`最終フィルタ結果： ${filtered.length} 件`);
-    setResults(filtered);
     onSearchResults(filtered);
   }, [data, query, selectedCategory, selectedArea, isOpenNow, hasParking, onSearchResults]);
 
@@ -316,7 +288,7 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
         </div>
 
         <div className="filter-row">
-          <div className="filter-item parking-filter" style={{ marginLeft: 'auto', marginRight: '0', position: 'absolute', right: '0', top: '100%' }}>
+          <div className="filter-item parking-filter">
             <button
               className={`filter-button ${hasParking ? 'active' : ''}`}
               onClick={() => setHasParking(!hasParking)}
@@ -329,11 +301,11 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
 
       {showResults && (
         <div className="search-results">
-          {results.length === 0 ? (
+          {data.length === 0 ? (
             <div className="no-results">該当する店舗がありません</div>
           ) : (
             <div className="results-list">
-              {results.map((shop, index) => (
+              {data.map((shop, index) => (
                 <div
                   key={`shop-result-${index}`}
                   className="result-item"

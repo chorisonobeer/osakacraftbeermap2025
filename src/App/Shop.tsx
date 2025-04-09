@@ -17,6 +17,7 @@ const SWIPE_THRESHOLD = 80;
 const Shop: React.FC<Props> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [localDistance, setLocalDistance] = useState<number | undefined>(props.shop.distance);
+  const [isClosing, setIsClosing] = useState(false);
   const currentPosition = useContext(GeolocationContext);
 
   // アニメーション用: マウント時に .slide-in クラスを付与して右側からスライドイン
@@ -63,12 +64,16 @@ const Shop: React.FC<Props> = (props) => {
     if (touchStartX.current === null || touchEndX.current === null) return;
     const deltaX = touchStartX.current - touchEndX.current;
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
-      props.close();
+      handleClose();
     }
   };
 
   const handleClose = () => {
-    props.close();
+    setIsClosing(true);
+    // アニメーション完了後に実際のclose処理を実行
+    setTimeout(() => {
+      props.close();
+    }, 300); // CSSのtransition時間と合わせる
   };
 
   const distanceTipText =
@@ -110,7 +115,7 @@ const Shop: React.FC<Props> = (props) => {
 
   return (
     <div
-      className="shop-single"
+      className={`shop-single ${isClosing ? 'closing' : ''}`}
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}

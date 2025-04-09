@@ -15,10 +15,17 @@ Last Modified: 2025-02-28 16:50:00
   height: 100%;
   /* アニメーション初期状態: 右側オフセット */
   transform: translateX(100%);
-  transition: transform 0.12s ease-out;
+  transform-origin: center center;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
 
   &.slide-in {
     transform: translateX(0);
+  }
+
+  &.closing {
+    transform: scale(0.5);
+    opacity: 0.8;
+    transition: 0.8s cubic-bezier(0,.71,.93,.45);
   }
 
   .head {

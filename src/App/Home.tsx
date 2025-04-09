@@ -15,18 +15,13 @@ type HomeProps = {
 };
 
 const Home: React.FC<HomeProps> = (props) => {
-  const [data, setData] = useState<Pwamap.ShopData[]>([]);
   const [selectedShop, setSelectedShop] = useState<Pwamap.ShopData | undefined>(undefined);
   const [filteredShops, setFilteredShops] = useState<Pwamap.ShopData[]>([]);
 
-  // 親コンポーネントからのデータを設定 - 非同期処理に変更
+  // 親コンポーネントからのデータを設定
   useEffect(() => {
     if (props.data.length > 0) {
-      // 非同期でデータを更新（UIブロックを防止）
-      setTimeout(() => {
-        setData(props.data);
-        setFilteredShops(props.data);
-      }, 0);
+      setFilteredShops(props.data);
     }
   }, [props.data]);
 
@@ -48,7 +43,7 @@ const Home: React.FC<HomeProps> = (props) => {
   return (
     <div className="home">
       <SearchFeature 
-        data={data}
+        data={props.data}
         onSelectShop={handleSelectShop}
         onSearchResults={handleSearchResults}
       />

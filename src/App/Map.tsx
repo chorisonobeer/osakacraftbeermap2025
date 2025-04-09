@@ -3,7 +3,7 @@ Full Path: /src/App/Map.tsx
 Last Modified: 2025-03-19 16:45:00
 */
 
-import React, { useRef, useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 // @ts-ignore
 import geojsonExtent from '@mapbox/geojson-extent';
 import toGeoJson from './toGeoJson';
@@ -59,132 +59,108 @@ const Content = (props: Props) => {
   const { onSelectShop } = props;
   const mapNode = React.useRef<HTMLDivElement>(null);
   const [mapObject, setMapObject] = React.useState<any>();
-  const initialBoundsSet = useRef(false);
   const [isLoadingMarkers, setIsLoadingMarkers] = useState(false);
 
-  // 既存のデータソースを更新する関数
-  const updateDataSource = useCallback((map: any, data: Pwamap.ShopData[]) => {
-    if (!map || !map.getSource('shops') || data.length === 0) return;
-    
-    const geojson = toGeoJson(data);
-    map.getSource('shops').setData(geojson);
-  }, []);
-
-  // マーカーをマップに追加する関数をメモ化
-  const addMarkers = useCallback((mapObject: any, data: any) => {
-    if (!mapObject || data.length === 0) {
-      return;
-    }
+  // マーカーを更新する関数
+  const updateMarkers = useCallback((map: any, data: Pwamap.ShopData[]) => {
+    if (!map) return;
 
     setIsLoadingMarkers(true);
 
-    // 非同期でマーカーを追加
-    setTimeout(() => {
-      if (!mapObject.getSource('shops')) {
-        const textColor = '#000000';
-        const textHaloColor = '#FFFFFF';
-
-        const geojson = toGeoJson(data);
-
-        mapObject.addSource('shops', {
-          type: 'geojson',
-          data: geojson,
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 25,
-        });
-
-        mapObject.addLayer({
-          id: 'shop-points',
-          type: 'circle',
-          source: 'shops',
-          filter: ['all', ['==', '$type', 'Point']],
-          paint: {
-            'circle-radius': 13,
-            'circle-color': '#FF0000',
-            'circle-opacity': 0.4,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#FFFFFF',
-            'circle-stroke-opacity': 1,
-          },
-        });
-
-        mapObject.addLayer({
-          id: 'shop-symbol',
-          type: 'symbol',
-          source: 'shops',
-          filter: ['all', ['==', '$type', 'Point']],
-          paint: {
-            'text-color': textColor,
-            'text-halo-color': textHaloColor,
-            'text-halo-width': 2,
-          },
-          layout: {
-            'text-field': "{スポット名}",
-            'text-font': ['Noto Sans Regular'],
-            'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-            'text-radial-offset': 0.5,
-            'text-justify': 'auto',
-            'text-size': 12,
-            'text-anchor': 'top',
-            'text-max-width': 12,
-            'text-allow-overlap': false,
-          },
-        });
-
-        mapObject.on('mouseenter', 'shop-points', () => {
-          mapObject.getCanvas().style.cursor = 'pointer';
-        });
-
-        mapObject.on('mouseleave', 'shop-points', () => {
-          mapObject.getCanvas().style.cursor = '';
-        });
-
-        mapObject.on('mouseenter', 'shop-symbol', () => {
-          mapObject.getCanvas().style.cursor = 'pointer';
-        });
-
-        mapObject.on('mouseleave', 'shop-symbol', () => {
-          mapObject.getCanvas().style.cursor = '';
-        });
-
-        mapObject.on('click', 'shop-points', (event: any) => {
-          if (!event.features[0].properties.cluster) {
-            onSelectShop(event.features[0].properties);
-          }
-        });
-
-        mapObject.on('click', 'shop-symbol', (event: any) => {
-          if (!event.features[0].properties.cluster) {
-            onSelectShop(event.features[0].properties);
-          }
-        });
-
-        setCluster(mapObject);
-      } else {
-        updateDataSource(mapObject, data);
-      }
-      
-      setIsLoadingMarkers(false);
-    }, 0);
-  }, [onSelectShop, updateDataSource]);
-
-  // マップデータが変わったらマーカーを更新
-  React.useEffect(() => {
-    if (!mapObject) return;
-    
-    if (mapObject.getSource('shops')) {
-      // 既存のデータソースが存在する場合は更新
-      updateDataSource(mapObject, props.data);
-    } else {
-      // データソースが存在しない場合は新規作成
-      addMarkers(mapObject, props.data);
+    // 既存のソースとレイヤーを削除
+    if (map.getSource('shops')) {
+      if (map.getLayer('shop-points')) map.removeLayer('shop-points');
+      if (map.getLayer('shop-symbol')) map.removeLayer('shop-symbol');
+      if (map.getLayer('clusters')) map.removeLayer('clusters');
+      if (map.getLayer('cluster-count')) map.removeLayer('cluster-count');
+      map.removeSource('shops');
     }
-  }, [mapObject, props.data, addMarkers, updateDataSource]);
+
+    // データが空の場合はマーカーを表示しない
+    if (data.length === 0) {
+      setIsLoadingMarkers(false);
+      return;
+    }
+
+    const geojson = toGeoJson(data);
+    map.addSource('shops', {
+      type: 'geojson',
+      data: geojson,
+      cluster: true,
+      clusterMaxZoom: 14,
+      clusterRadius: 25,
+    });
+
+    // マーカーレイヤーを追加
+    map.addLayer({
+      id: 'shop-points',
+      type: 'circle',
+      source: 'shops',
+      filter: ['all', ['==', '$type', 'Point']],
+      paint: {
+        'circle-radius': 13,
+        'circle-color': '#FF0000',
+        'circle-opacity': 0.4,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#FFFFFF',
+        'circle-stroke-opacity': 1,
+      },
+    });
+
+    map.addLayer({
+      id: 'shop-symbol',
+      type: 'symbol',
+      source: 'shops',
+      filter: ['all', ['==', '$type', 'Point']],
+      paint: {
+        'text-color': '#000000',
+        'text-halo-color': '#FFFFFF',
+        'text-halo-width': 2,
+      },
+      layout: {
+        'text-field': "{スポット名}",
+        'text-font': ['Noto Sans Regular'],
+        'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+        'text-radial-offset': 0.5,
+        'text-justify': 'auto',
+        'text-size': 12,
+        'text-anchor': 'top',
+        'text-max-width': 12,
+        'text-allow-overlap': false,
+      },
+    });
+
+    // イベントハンドラを設定
+    const layers = ['shop-points', 'shop-symbol'];
+    layers.forEach(layer => {
+      map.on('mouseenter', layer, () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.on('mouseleave', layer, () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      map.on('click', layer, (event: any) => {
+        if (!event.features[0].properties.cluster) {
+          onSelectShop(event.features[0].properties);
+        }
+      });
+    });
+
+    setCluster(map);
+    setIsLoadingMarkers(false);
+  }, [onSelectShop]);
+
+  // マーカー更新のエフェクト
+  useEffect(() => {
+    if (!mapObject) return;
+    updateMarkers(mapObject, props.data);
+  }, [mapObject, props.data, updateMarkers]);
 
   // 初回のみ、地図の表示範囲を調整
-  React.useEffect(() => {
-    if (!mapObject || props.data.length === 0 || initialBoundsSet.current) {
+  useEffect(() => {
+    if (!mapObject || props.data.length === 0) {
       return;
     }
     
@@ -195,12 +171,11 @@ const Content = (props: Props) => {
       mapObject.fitBounds(bounds, {
         padding: 50
       });
-      initialBoundsSet.current = true;
     }
   }, [mapObject, props.data]);
 
   // 選択された店舗があれば、その位置に地図を移動
-  React.useEffect(() => {
+  useEffect(() => {
     if (!mapObject || !props.selectedShop) {
       return;
     }
@@ -217,9 +192,8 @@ const Content = (props: Props) => {
     }
   }, [mapObject, props.selectedShop]);
 
-  // 地図の初期化（一度だけ実行）- 高速化のため即時実行
-  React.useEffect(() => {
-    // マップノードが無いか、既にマップオブジェクトが存在する場合は何もしない
+  // 地図の初期化（一度だけ実行）
+  useEffect(() => {
     if (!mapNode.current || mapObject) {
       return;
     }
@@ -227,28 +201,24 @@ const Content = (props: Props) => {
     // @ts-ignore
     const { geolonia } = window;
 
-    // 地図を初期化 - 即座に表示するために先に初期化
     const map = new geolonia.Map({
       container: mapNode.current,
       style: 'geolonia/basic',
       center: NIIGATA_CENTER,
       zoom: DEFAULT_ZOOM,
-      interactive: true, // 即座に操作可能にする
+      interactive: true,
       trackResize: true,
     });
 
-    // 地図が読み込まれたときの処理
     const onMapLoad = () => {
       hidePoiLayers(map);
       setMapObject(map);
       
-      // 非同期で位置情報を取得
       try {
-        // ジオロケーションコントロールを追加（タイムアウト短縮）
         const geolocateControl = new geolonia.GeolocateControl({
           positionOptions: {
             enableHighAccuracy: true,
-            timeout: 2000, // 2秒に短縮
+            timeout: 2000,
             maximumAge: 0
           },
           trackUserLocation: true,
@@ -257,12 +227,10 @@ const Content = (props: Props) => {
         
         map.addControl(geolocateControl, 'top-right');
         
-        // 非同期で位置情報を取得（マップ表示をブロックしない）
         setTimeout(() => {
           geolocateControl.trigger();
         }, 100);
         
-        // エラーハンドリング - 失敗しても地図は表示されたまま
         geolocateControl.on('error', () => {
           console.warn('位置情報の取得に失敗しましたが、地図は使用できます');
         });
@@ -271,23 +239,18 @@ const Content = (props: Props) => {
       }
     };
 
-    // 画面の向きが変わったときのハンドラー
     const orientationChangeHandler = () => {
       map.resize();
     };
 
-    // イベントリスナーを登録
     map.on('load', onMapLoad);
     window.addEventListener('orientationchange', orientationChangeHandler);
 
-    // クリーンアップ関数
     return () => {
-      // イベントリスナーを削除
       window.removeEventListener('orientationchange', orientationChangeHandler);
       map.off('load', onMapLoad);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  // 依存配列を空にして初期化を一度だけ実行
+  }, [mapObject]);
 
   return (
     <div style={CSS}>
