@@ -76,7 +76,11 @@ const Shop: React.FC<Props> = (props) => {
       ? makeDistanceLabelText(localDistance)
       : "距離不明";
 
-  const category = props.shop["カテゴリ"] || "";
+  // カテゴリの分割処理
+  const categories = props.shop["カテゴリ"] 
+    ? props.shop["カテゴリ"].split(/,|、|\s+/).map(cat => cat.trim()).filter(cat => cat !== '')
+    : [];
+  
   const content = props.shop["紹介文"] || "";
   const spotName = props.shop["スポット名"] || "店名不明";
 
@@ -121,11 +125,11 @@ const Shop: React.FC<Props> = (props) => {
 
         {/* カテゴリと距離を同じ行で並べる */}
         <div className="tag-box">
-          {category && (
-            <Link to={`/list?category=${category}`}>
+          {categories.map((category, index) => (
+            <Link key={`cat-${index}`} to={`/list?category=${category}`}>
               <span className="category">{category}</span>
             </Link>
-          )}
+          ))}
           {distanceTipText && (
             <span className="distance">現在位置から {distanceTipText}</span>
           )}

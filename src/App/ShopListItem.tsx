@@ -17,9 +17,13 @@ const Content = (props: Props) => {
   const distanceTipText = props.data.distance !== undefined 
     ? makeDistanceLabelText(props.data.distance)
     : '距離不明';
-  const category = props.data['カテゴリ'];
+  
+  // カテゴリの分割処理
+  const categories = props.data['カテゴリ'] 
+    ? props.data['カテゴリ'].split(/,|、|\s+/).map(cat => cat.trim()).filter(cat => cat !== '')
+    : [];
+  
   const image = props.data['画像'];
-
   const isCategoryPage = props.queryCategory ? true : false;
 
   return (
@@ -29,12 +33,13 @@ const Content = (props: Props) => {
       </h2>
       <div className='tag-box'>
         {
-          !isCategoryPage &&
-          <span className="nowrap">
-            <Link to={`/list?category=${category}`}>
-              <span className="category">{category}</span>
-            </Link>
-          </span>
+          !isCategoryPage && categories.map((category, index) => (
+            <span className="nowrap" key={`cat-${index}`}>
+              <Link to={`/list?category=${category}`}>
+                <span className="category">{category}</span>
+              </Link>
+            </span>
+          ))
         }
         <span className="nowrap">
           <span className="distance">現在位置から {distanceTipText}</span>

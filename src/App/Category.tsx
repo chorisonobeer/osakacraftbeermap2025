@@ -14,22 +14,30 @@ const Content = (props: Props) => {
   const [categoryList, setCategoryList] = React.useState<string[]>([]);
 
   React.useEffect(() => {
-
-    let categories: string[] = []
+    let categories: string[] = [];
 
     for (let i = 0; i < props.data.length; i++) {
       const shop = props.data[i];
-
-      if (categories.indexOf(shop['カテゴリ']) === -1) {
-
-        categories.push(shop['カテゴリ'])
+      
+      if (shop['カテゴリ']) {
+        // カンマ、全角カンマ、空白で分割してカテゴリを追加
+        const shopCategories = shop['カテゴリ']
+          .split(/,|、|\s+/)
+          .map(cat => cat.trim())
+          .filter(cat => cat !== '');
+        
+        for (const category of shopCategories) {
+          if (categories.indexOf(category) === -1) {
+            categories.push(category);
+          }
+        }
       }
-
     }
 
-    setCategoryList(categories)
-
-  }, [props.data])
+    // カテゴリをアルファベット順にソート
+    categories.sort();
+    setCategoryList(categories);
+  }, [props.data]);
 
 
   return (
