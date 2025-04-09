@@ -10,19 +10,26 @@ type SearchFeatureProps = {
 const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, onSelectShop }) => {
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedArea, setSelectedArea] = useState<string>('');
   const [isOpenNow, setIsOpenNow] = useState(false);
   const [hasParking, setHasParking] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
   const [results, setResults] = useState<Pwamap.ShopData[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [showAreaDropdown, setShowAreaDropdown] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const areaDropdownRef = useRef<HTMLDivElement>(null);
 
   // クリック外のイベントを監視して、ドロップダウンを閉じる
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
         setShowCategoryDropdown(false);
+      }
+      if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
+        setShowAreaDropdown(false);
       }
     }
     
@@ -38,19 +45,26 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
       const allCategories = data
         .map(shop => shop['カテゴリ'])
         .filter(Boolean)
-        .flatMap(category => {
-          // カンマ、全角カンマ、空白で分割
-          const splitCategories = category.split(/,|、|\s+/)
-            .map(cat => cat.trim())
-            .filter(cat => cat !== '');
-          return splitCategories;
-        });
+        .flatMap(category => category.split(/,|、|\s+/))
+        .map(category => category.trim())
+        .filter(category => category !== '');
       
-      // 重複を除去して一意のカテゴリリストを作成
       const uniqueCategories = Array.from(new Set(allCategories))
-        .sort(); // カテゴリをアルファベット順にソート
+        .sort();
       
       setCategories(uniqueCategories);
+    }
+  }, [data]);
+
+  // エリア一覧を作成
+  useEffect(() => {
+    if (data.length > 0) {
+      const uniqueAreas = Array.from(new Set(data
+        .map(shop => shop['エリア'])
+        .filter(Boolean)))
+        .sort();
+      
+      setAreas(uniqueAreas);
     }
   }, [data]);
 
@@ -81,6 +95,12 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
         return shopCategories.includes(selectedCategory);
       });
       console.debug(`カテゴリフィルタ後： ${filtered.length} 件`);
+    }
+
+    // エリアでフィルタリング
+    if (selectedArea) {
+      filtered = filtered.filter(shop => shop['エリア'] === selectedArea);
+      console.debug(`エリアフィルタ後： ${filtered.length} 件`);
     }
 
     // 営業中でフィルタリング
@@ -148,7 +168,7 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
       console.debug(`営業時間フィルタ後： ${filtered.length} 件`);
     }
 
-    // 駐車場フィルタリング：1台以上あるもの
+    // 駐車場フィルタリング
     if (hasParking) {
       filtered = filtered.filter(shop => {
         if (!shop['駐車場']) return false;
@@ -166,7 +186,7 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
     console.debug(`最終フィルタ結果： ${filtered.length} 件`);
     setResults(filtered);
     onSearchResults(filtered);
-  }, [data, query, selectedCategory, isOpenNow, hasParking, onSearchResults]);
+  }, [data, query, selectedCategory, selectedArea, isOpenNow, hasParking, onSearchResults]);
 
   // フィルター条件が変わったら再フィルタリング
   useEffect(() => {
@@ -185,6 +205,12 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
     setShowCategoryDropdown(false);
   };
 
+  // エリア選択ハンドラー
+  const handleAreaSelect = (area: string) => {
+    setSelectedArea(area);
+    setShowAreaDropdown(false);
+  };
+
   // 結果アイテムクリックハンドラー
   const handleResultClick = (shop: Pwamap.ShopData) => {
     onSelectShop(shop);
@@ -201,54 +227,103 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
           onChange={handleInputChange}
           className="search-input"
         />
+        {query && (
+          <button 
+            className="clear-button" 
+            onClick={() => {
+              setQuery('');
+              setShowResults(false);
+              onSearchResults(data);
+            }}
+            aria-label="入力をクリア"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       <div className="filter-container">
-        {/* カスタムドロップダウン */}
-        <div className="filter-item category-filter" ref={dropdownRef}>
-          <div 
-            className={`custom-dropdown-header ${selectedCategory ? 'active' : ''}`}
-            onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-          >
-            {selectedCategory === '' ? 'すべて' : selectedCategory}
-          </div>
-          {showCategoryDropdown && (
-            <div className="custom-dropdown-list">
-              <div 
-                className="custom-dropdown-item"
-                onClick={() => handleCategorySelect('')}
-              >
-                すべて
-              </div>
-              {categories.map((category) => (
-                <div
-                  key={category}
-                  className="custom-dropdown-item"
-                  onClick={() => handleCategorySelect(category)}
-                >
-                  {category}
-                </div>
-              ))}
+        <div className="filter-row">
+          {/* カテゴリドロップダウン */}
+          <div className="filter-item category-filter" ref={categoryDropdownRef}>
+            <div 
+              className={`custom-dropdown-header ${selectedCategory ? 'active' : ''}`}
+              onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+            >
+              {selectedCategory === '' ? 'カテゴリ' : selectedCategory}
+              <span className="dropdown-icon">▼</span>
             </div>
-          )}
+            {showCategoryDropdown && (
+              <div className="custom-dropdown-list">
+                <div 
+                  className="custom-dropdown-item"
+                  onClick={() => handleCategorySelect('')}
+                >
+                  すべて
+                </div>
+                {categories.map((category) => (
+                  <div
+                    key={category}
+                    className="custom-dropdown-item"
+                    onClick={() => handleCategorySelect(category)}
+                  >
+                    {category}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* エリアドロップダウン */}
+          <div className="filter-item area-filter" ref={areaDropdownRef}>
+            <div 
+              className={`custom-dropdown-header ${selectedArea ? 'active' : ''}`}
+              onClick={() => setShowAreaDropdown(!showAreaDropdown)}
+            >
+              {selectedArea === '' ? 'エリア' : selectedArea}
+              <span className="dropdown-icon">▼</span>
+            </div>
+            {showAreaDropdown && (
+              <div className="custom-dropdown-list">
+                <div 
+                  className="custom-dropdown-item"
+                  onClick={() => handleAreaSelect('')}
+                >
+                  すべて
+                </div>
+                {areas.map((area) => (
+                  <div
+                    key={area}
+                    className="custom-dropdown-item"
+                    onClick={() => handleAreaSelect(area)}
+                  >
+                    {area}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 現在営業中ボタン */}
+          <div className="filter-item operation-filter">
+            <button
+              className={`filter-button ${isOpenNow ? 'active' : ''}`}
+              onClick={() => setIsOpenNow(!isOpenNow)}
+            >
+              現在営業中
+            </button>
+          </div>
         </div>
-        
-        <div className="filter-item">
-          <button
-            className={`filter-button ${isOpenNow ? 'active' : ''}`}
-            onClick={() => setIsOpenNow(!isOpenNow)}
-          >
-            現在営業中
-          </button>
-        </div>
-        
-        <div className="filter-item">
-          <button
-            className={`filter-button ${hasParking ? 'active' : ''}`}
-            onClick={() => setHasParking(!hasParking)}
-          >
-            駐車場有り
-          </button>
+
+        <div className="filter-row">
+          <div className="filter-item parking-filter" style={{ marginLeft: 'auto', marginRight: '0', position: 'absolute', right: '0', top: '100%' }}>
+            <button
+              className={`filter-button ${hasParking ? 'active' : ''}`}
+              onClick={() => setHasParking(!hasParking)}
+            >
+              駐車場有り
+            </button>
+          </div>
         </div>
       </div>
 
@@ -269,13 +344,13 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
                       {shop['スポット名']}
                     </div>
                     <div className="result-hours" style={{ fontSize: '8pt', fontWeight: '600' }}>
-                     営業時間： {shop['営業時間'] ? shop['営業時間'] : '営業時間不明'}
+                      営業時間： {shop['営業時間'] ? shop['営業時間'] : '営業時間不明'}
                     </div>
                     <div className="result-closed" style={{ fontSize: '8pt', fontWeight: '600' }}>
                       定休日：{shop['定休日'] ? shop['定休日'] : '定休日不明'}
                     </div>
                     <div className="result-address" style={{ fontSize: '8pt', fontWeight: '600' }}>
-                     住所： {shop['住所'] ? shop['住所'] : '住所不明'}
+                      住所： {shop['住所'] ? shop['住所'] : '住所不明'}
                     </div>
                   </div>
                   <div className="result-image">
