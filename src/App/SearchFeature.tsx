@@ -35,7 +35,14 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
   // カテゴリ一覧を作成
   useEffect(() => {
     if (data.length > 0) {
-      const uniqueCategories = Array.from(new Set(data.map(shop => shop['カテゴリ']))).filter(Boolean);
+      const allCategories = data
+        .map(shop => shop['カテゴリ'])
+        .filter(Boolean)
+        .flatMap(category => category.split(/,|、|\s+/))
+        .map(category => category.trim())
+        .filter(category => category !== '');
+      
+      const uniqueCategories = Array.from(new Set(allCategories));
       setCategories(uniqueCategories);
     }
   }, [data]);
@@ -60,7 +67,12 @@ const SearchFeature: React.FC<SearchFeatureProps> = ({ data, onSearchResults, on
 
     // カテゴリでフィルタリング
     if (selectedCategory) {
-      filtered = filtered.filter(shop => shop['カテゴリ'] === selectedCategory);
+      filtered = filtered.filter(shop => {
+        const shopCategories = shop['カテゴリ']
+          ? shop['カテゴリ'].split(/,|、|\s+/).map(cat => cat.trim())
+          : [];
+        return shopCategories.includes(selectedCategory);
+      });
       console.debug(`カテゴリフィルタ後： ${filtered.length} 件`);
     }
 
