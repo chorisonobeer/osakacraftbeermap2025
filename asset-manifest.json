@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "./static/css/main.a467e790.css",
+    "main.css": "./static/css/main.1fcbd256.css",
     "main.js": "./static/js/main.740c8dcc.js",
     "static/media/hero-sado.png": "./static/media/hero-sado.5cad00561aaff013e71e.png",
     "service-worker.js": "./service-worker.js",
     "index.html": "./index.html",
-    "main.a467e790.css.map": "./static/css/main.a467e790.css.map",
+    "main.1fcbd256.css.map": "./static/css/main.1fcbd256.css.map",
     "main.740c8dcc.js.map": "./static/js/main.740c8dcc.js.map"
   },
   "entrypoints": [
-    "static/css/main.a467e790.css",
+    "static/css/main.1fcbd256.css",
     "static/js/main.740c8dcc.js"
   ]
 }
