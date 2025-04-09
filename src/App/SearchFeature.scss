@@ -92,7 +92,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 8px 10px;
-        background: #ceecf5;
+        background: #f5f5f5;
         border: 1px solid #ddd;
         border-radius: 4px;
         cursor: pointer;
@@ -171,6 +171,7 @@
     max-height: calc(100vh - 150px);
     overflow-y: auto;
     z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     
     .no-results {
       padding: 16px;
@@ -182,26 +183,45 @@
       .result-item {
         display: flex;
         padding: 12px;
-        border-bottom: 1px solid #eee;
         cursor: pointer;
+        transition: background-color 0.2s ease;
         
-        &:last-child {
-          border-bottom: none;
+        &:nth-child(odd) {
+          background-color: #dbfde298;
+        }
+        
+        &:nth-child(even) {
+          background-color: #ffffff;
         }
         
         &:hover {
-          background: #f5f5f5;
+          background-color: #e9ecef;
         }
         
         .result-info {
           flex: 1;
           margin-right: 12px;
+          
+          h3 {
+            font-size: 14px;
+            margin: 0 0 4px 0;
+            color: #333;
+            font-weight: 500;
+          }
+          
+          p {
+            font-size: 12px;
+            color: #666;
+            margin: 0;
+            line-height: 1.4;
+          }
         }
         
         .result-image {
           width: 80px;
           height: 80px;
           overflow: hidden;
+          border-radius: 4px;
           
           img {
             width: 100%;
