@@ -27,3 +27,6 @@ yarn-error.log*
 
 # Local Netlify folder
 .netlify
+
+# 変更履歴
+docs/changelog/

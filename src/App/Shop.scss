@@ -257,3 +257,28 @@ Last Modified: 2025-02-28 16:50:00
     }
   }
 }
+
+.shop-route {
+  margin: 15px 0;
+  padding: 12px 15px;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+
+  .route-link {
+    display: block;
+    padding: 10px;
+    color: #007bff;
+    text-decoration: none;
+    font-weight: bold;
+    text-align: center;
+    transition: color 0.2s ease;
+    background-color: #ffffff;
+    border-radius: 4px;
+    border: 1px solid #007bff;
+
+    &:hover {
+      color: #0056b3;
+      background-color: #f8f9fa;
+    }
+  }
+}

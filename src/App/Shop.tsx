@@ -95,6 +95,12 @@ const Shop: React.FC<Props> = (props) => {
   const tel = props.shop["TEL"];
   const site = props.shop["公式サイト"];
 
+  // Google Mapsのルート検索URLを生成
+  const getGoogleMapsDirectionsUrl = () => {
+    const destination = encodeURIComponent(address);
+    return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+  };
+
   // 画像データの処理
   const getImages = () => {
     const imageKeys = ['画像', '画像2', '画像3', '画像4', '画像5'];
@@ -128,7 +134,6 @@ const Shop: React.FC<Props> = (props) => {
       <div className="container">
         <h2 className="shop-title">{spotName}</h2>
 
-        {/* カテゴリと距離を同じ行で並べる */}
         <div className="tag-box">
           {categories.map((category, index) => (
             <Link key={`cat-${index}`} to={`/list?category=${category}`}>
@@ -140,8 +145,18 @@ const Shop: React.FC<Props> = (props) => {
           )}
         </div>
 
-        {/* SNS リンクをカテゴリの下に配置 */}
         <Links data={props.shop} />
+
+        <div className="shop-route">
+          <a 
+            href={getGoogleMapsDirectionsUrl()} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="route-link"
+          >
+            この場所に行くルート
+          </a>
+        </div>
 
         <div className="shop-info-box">
           <div className="info-item">
